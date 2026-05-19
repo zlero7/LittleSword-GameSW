@@ -520,6 +520,73 @@ namespace LittleSword.Network
         }
         #endregion
 
+        #region 빠른 참여 / 코드 입장
+
+        public async Task<bool> QuickJoinLobbyAsync()
+        {
+            try
+            {
+                var lobbies = await FetchLobbiesAsync();
+                var available = lobbies.Find(l => l.Players.Count < l.MaxPlayers);
+                if (available == null)
+                {
+                    OnError?.Invoke("참여 가능한 방이 없습니다.");
+                    return false;
+                }
+                return await JoinLobbyAsync(available);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbyManager] 빠른 참여 실패: {e.Message}");
+                OnError?.Invoke($"빠른 참여 실패: {e.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> JoinLobbyByCodeAsync(string lobbyCode)
+        {
+            try
+            {
+                CurrentLobby = await LobbyService.Instance.JoinLobbyByCodeAsync(lobbyCode.Trim());
+
+                string joinCode = null;
+                int retryCount = 0;
+                const int MAX_RETRIES = 5;
+
+                while (retryCount < MAX_RETRIES)
+                {
+                    if (CurrentLobby.Data != null &&
+                        CurrentLobby.Data.TryGetValue(KEY_RELAY_JOIN_CODE, out var entry) &&
+                        !string.IsNullOrEmpty(entry.Value))
+                    {
+                        joinCode = entry.Value;
+                        break;
+                    }
+                    Debug.Log($"[LobbyManager] 코드 입장 대기 중... ({retryCount + 1}/{MAX_RETRIES})");
+                    await Task.Delay(2000);
+                    CurrentLobby = await LobbyService.Instance.GetLobbyAsync(CurrentLobby.Id);
+                    retryCount++;
+                }
+
+                if (!string.IsNullOrEmpty(joinCode))
+                    return await ConnectRelayAsClientAsync(joinCode);
+
+                OnError?.Invoke("호스트로부터 연결 코드를 받지 못했습니다.");
+                await LeaveLobbyAsync();
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbyManager] 코드 입장 실패: {e.Message}");
+                OnError?.Invoke($"코드 입장 실패: {e.Message}");
+                return false;
+            }
+        }
+
+        public string GetCurrentLobbyCode() => CurrentLobby?.LobbyCode;
+
+        #endregion
+
         #region 헬퍼
         private bool IsHost() =>
             CurrentLobby != null &&
