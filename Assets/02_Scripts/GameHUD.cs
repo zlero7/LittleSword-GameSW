@@ -11,13 +11,16 @@ namespace LittleSword.UI
         private void Awake()
         {
             // NGO 씬 전환 시 이전 씬(Start/LobbyList)의 Canvas가 잔존하는 경우 강제 제거
-            // SetActive(false)로 숨겨진 비활성 Canvas도 포함해서 탐색
             string myScene = gameObject.scene.name;
             var allCanvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var canvas in allCanvases)
             {
                 string cScene = canvas.gameObject.scene.name;
-                if (!string.IsNullOrEmpty(cScene) && cScene != myScene && cScene != "DontDestroyOnLoad")
+                if (string.IsNullOrEmpty(cScene) || cScene == myScene) continue;
+
+                // 다른 씬이면 무조건 제거. DontDestroyOnLoad에 남은 로비 Canvas도 포함
+                bool isLobbyCanvas = canvas.GetComponentInChildren<LobbyUI>(true) != null;
+                if (cScene != "DontDestroyOnLoad" || isLobbyCanvas)
                     Destroy(canvas.gameObject);
             }
         }

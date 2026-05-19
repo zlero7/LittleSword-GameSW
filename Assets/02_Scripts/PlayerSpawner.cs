@@ -21,7 +21,9 @@ namespace LittleSword
                 return;
             }
 
-            SpawnPlayer(NetworkManager.Singleton.LocalClientId);
+            // Spawn every already-connected client (includes host + clients that joined before scene load)
+            foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+                SpawnPlayer(clientId);
         }
 
         private void SpawnServerCamera()

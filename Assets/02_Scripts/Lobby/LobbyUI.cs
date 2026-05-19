@@ -72,6 +72,10 @@ namespace LittleSword.UI
             EnsureLobbyManager();
             SetUI(LobbyState.Initial);
             SetStatus("방을 만들거나 참여하세요.");
+
+            // 씬 전환 시작 즉시 이 Canvas를 제거 (DontDestroyOnLoad에 잔존 방지)
+            if (NetworkManager.Singleton?.SceneManager != null)
+                NetworkManager.Singleton.SceneManager.OnSceneEvent += OnNGOSceneEvent;
         }
 
         private void OnDestroy()
@@ -79,6 +83,15 @@ namespace LittleSword.UI
             if (LobbyManager.Instance != null)
                 LobbyManager.Instance.OnError -= OnError;
             StopPoll();
+            if (NetworkManager.Singleton?.SceneManager != null)
+                NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnNGOSceneEvent;
+        }
+
+        private void OnNGOSceneEvent(SceneEvent sceneEvent)
+        {
+            if (sceneEvent.SceneEventType != SceneEventType.Load) return;
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas != null) Destroy(canvas.gameObject);
         }
 
         // ── 방 생성 ─────────────────────────────────────────────────────────
