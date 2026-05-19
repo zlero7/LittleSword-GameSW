@@ -197,15 +197,13 @@ namespace LittleSword.Network
                     false // isSecure: false로 변경 (빌드 안정성)
                 ));
 
-                // JoinCode는 아직 비워둠 — 서버가 Basic 씬 로드를 완료한 뒤 PublishJoinCodeAsync()로 올림
-                // 클라이언트가 씬 전환 중인 서버에 붙어 즉시 끊기는 문제 방지
                 var options = new CreateLobbyOptions
                 {
                     IsPrivate = false,
                     Data = new Dictionary<string, DataObject>
                     {
                         [KEY_RELAY_JOIN_CODE] = new DataObject(
-                            DataObject.VisibilityOptions.Public, ""),   // 일단 빈 값
+                            DataObject.VisibilityOptions.Public, joinCode),
                         [KEY_ROOM_NAME] = new DataObject(
                             DataObject.VisibilityOptions.Public, roomName),
                         [KEY_PLAYER_COUNT] = new DataObject(
@@ -214,7 +212,6 @@ namespace LittleSword.Network
                 };
                 CurrentLobby = await LobbyService.Instance.CreateLobbyAsync(
                     roomName, MAX_PLAYERS, options);
-                _pendingJoinCode = joinCode; // 씬 전환 완료 후 PublishJoinCodeAsync()에서 사용
 
                 // NetworkManager가 실행 중이면 완전히 종료될 때까지 대기
                 if (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.ShutdownInProgress)

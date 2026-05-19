@@ -13,29 +13,15 @@ namespace LittleSword
         {
             if (!IsServer) return;
 
-            // Basic 씬 로드 완료 — JoinCode를 로비에 공개해 클라이언트 접속 허용
-            _ = PublishJoinCodeAndListenAsync();
+            NetworkManager.Singleton.OnClientConnectedCallback += SpawnPlayer;
 
-            // 순수 서버(Host 아님)면 플레이어 없이 카메라만 생성
             if (!NetworkManager.Singleton.IsHost)
             {
                 SpawnServerCamera();
                 return;
             }
 
-        }
-
-        private async System.Threading.Tasks.Task PublishJoinCodeAndListenAsync()
-        {
-            if (LittleSword.Network.LobbyManager.Instance != null)
-                await LittleSword.Network.LobbyManager.Instance.PublishJoinCodeAsync();
-
-            // JoinCode 공개 후 신규 클라이언트 접속 콜백 등록
-            NetworkManager.Singleton.OnClientConnectedCallback += SpawnPlayer;
-
-            // Host면 자기 자신도 스폰
-            if (NetworkManager.Singleton.IsHost)
-                SpawnPlayer(NetworkManager.Singleton.LocalClientId);
+            SpawnPlayer(NetworkManager.Singleton.LocalClientId);
         }
 
         private void SpawnServerCamera()
