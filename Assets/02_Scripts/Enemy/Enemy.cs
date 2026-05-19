@@ -36,13 +36,18 @@ namespace LittleSword.Enemy
         public Transform Target => target;
         public bool IsDead => CurrentHP <= 0;
 
-        // HP - 서버 권한, 모두 읽기 가능
         private NetworkVariable<int> networkHP = new NetworkVariable<int>(
             0,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server
         );
         public int CurrentHP => networkHP.Value;
+
+        private NetworkVariable<bool> networkFlipX = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server
+        );
 
         #region 상태 관련 메서드
 
@@ -90,7 +95,9 @@ namespace LittleSword.Enemy
         {
             if (spriteRenderer == null) return;
             Vector2 dir = target.position - transform.position;
-            spriteRenderer.flipX = dir.x < 0;
+            bool shouldFlip = dir.x < 0;
+            if (networkFlipX.Value != shouldFlip)
+                networkFlipX.Value = shouldFlip;
         }
 
         public void StopMoving()
@@ -118,17 +125,22 @@ namespace LittleSword.Enemy
 
         public override void OnNetworkSpawn()
         {
-            // ✅ [버그2 수정] 중괄호 명시 — ChangeState가 if 블록 밖으로 빠지던 버그 수정
             if (IsServer)
             {
                 networkHP.Value = enemyStats.maxHP;
                 ChangeState<IdleState>();
             }
 
-            // ✅ [버그2 수정] 클라이언트는 Update(FSM)만 끄고, Animator는 활성 유지
-            // 서버가 ClientRpc로 애니메이션 명령을 보내므로 클라이언트 Animator는 켜둬야 함
+            networkFlipX.OnValueChanged += OnFlipXChanged;
+            spriteRenderer.flipX = networkFlipX.Value;
+
             if (!IsServer)
                 enabled = false;
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            networkFlipX.OnValueChanged -= OnFlipXChanged;
         }
 
         private void Update()
@@ -176,6 +188,12 @@ namespace LittleSword.Enemy
         }
 
         #endregion
+
+        private void OnFlipXChanged(bool prev, bool next)
+        {
+            if (spriteRenderer != null)
+                spriteRenderer.flipX = next;
+        }
 
         #region 애니메이션 동기화 (ClientRpc)
 
