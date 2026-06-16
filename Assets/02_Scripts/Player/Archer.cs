@@ -17,8 +17,8 @@ namespace LittleSword.Player
 
         protected new void Update()
         {
-            if (!IsOwner) return;
             base.Update();
+            if (!IsOwner) return;
 
             if (isCharging)
             {
@@ -32,6 +32,29 @@ namespace LittleSword.Player
         protected override void Attack()
         {
             if (!IsOwner) return;
+            PlayAndSyncAttackAnim();
+        }
+
+        // 오너 로컬 즉시 실행 + ServerRpc → ClientRpc 브로드캐스트
+        private void PlayAndSyncAttackAnim()
+        {
+            animator.SetTrigger("Attack");
+            if (IsServer)
+                BroadcastAttackAnimClientRpc();
+            else
+                RequestBroadcastAttackAnimServerRpc();
+        }
+
+        [ServerRpc]
+        private void RequestBroadcastAttackAnimServerRpc()
+        {
+            BroadcastAttackAnimClientRpc();
+        }
+
+        [ClientRpc]
+        private void BroadcastAttackAnimClientRpc()
+        {
+            if (IsOwner) return;
             animator.SetTrigger("Attack");
         }
 
@@ -59,7 +82,7 @@ namespace LittleSword.Player
                 chargeSlider.gameObject.SetActive(false);
 
             float chargeRatio = chargeTime / playerStats.maxChargeTime;
-            animator.SetTrigger("Attack");
+            PlayAndSyncAttackAnim();
 
             // ✅ 방향을 클라이언트에서 계산해서 서버로 전달
             bool flipX = spriteRenderer.flipX;

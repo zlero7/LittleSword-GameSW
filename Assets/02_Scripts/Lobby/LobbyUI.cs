@@ -186,11 +186,20 @@ namespace LittleSword.UI
             _inLobby = false;
             _busy = false;
 
-            if (lobbyCodeDisplayText != null) lobbyCodeDisplayText.text = "";
-            if (playerCountText != null) playerCountText.text = "";
+            ClearCurrentLobby();
 
             SetStatus("로비에서 나왔습니다.");
             SetUI(LobbyState.Initial);
+        }
+
+        // 로비 정보를 초기화하여 UI를 기본 상태로 되돌린다.
+        // (입력 필드 + 로비 코드/플레이어 수 표시 초기화)
+        private void ClearCurrentLobby()
+        {
+            if (lobbyNameInput != null) lobbyNameInput.text = "";
+            if (lobbyCodeInput != null) lobbyCodeInput.text = "";
+            if (lobbyCodeDisplayText != null) lobbyCodeDisplayText.text = "";
+            if (playerCountText != null) playerCountText.text = "";
         }
 
         // ── 게임 시작 (호스트 전용) ──────────────────────────────────────────

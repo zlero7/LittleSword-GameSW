@@ -1,0 +1,5 @@
+<linker>
+  <assembly fullname="Unity.RenderPipelines.Core.Runtime" preserve="all">
+    <type fullname="UnityEngine.Rendering.ProbeVolume" preserve="all"/>
+  </assembly>
+</linker>

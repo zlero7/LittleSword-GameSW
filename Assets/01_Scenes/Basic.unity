@@ -1903,7 +1903,7 @@ MonoBehaviour:
   revivePanel: {fileID: 1704268538}
   gameOverDelay: 5
   respawnPoints:
-  - {fileID: 883167037}
+  - {fileID: 0}
 --- !u!1 &541423304
 GameObject:
   m_ObjectHideFlags: 0
@@ -2831,37 +2831,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!1 &883167036
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 883167037}
-  m_Layer: 0
-  m_Name: ReSpawnPoint
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &883167037
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 883167036}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.06, y: -0.21, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1002606850
 GameObject:
   m_ObjectHideFlags: 0
@@ -3290,6 +3259,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1078635368}
   m_CullTransparentMesh: 1
+--- !u!1 &1153700763
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1153700764}
+  m_Layer: 0
+  m_Name: ReSpawnPoint (1)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1153700764
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1153700763}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.18, y: -0.21, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1161135932
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6987,7 +6987,7 @@ MonoBehaviour:
   warriorPrefab: {fileID: 989479452788881539, guid: cc70da90e6c8a494996e972f4a1ad0dc, type: 3}
   archerPrefab: {fileID: 4753135325168601271, guid: a76dcea5a2997429e8d276861be72834, type: 3}
   spawnPoints:
-  - {fileID: 883167037}
+  - {fileID: 1153700764}
 --- !u!4 &1792470636
 Transform:
   m_ObjectHideFlags: 0
@@ -7850,5 +7850,5 @@ SceneRoots:
   - {fileID: 23874092}
   - {fileID: 1175026060}
   - {fileID: 1444531389}
-  - {fileID: 883167037}
+  - {fileID: 1153700764}
   - {fileID: 1792470636}

@@ -55,6 +55,11 @@ namespace LittleSword.Player
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Owner
         );
+        private NetworkVariable<bool> networkIsRun = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner
+        );
 
         public bool IsDead => networkHP.Value <= 0;
 
@@ -81,6 +86,7 @@ namespace LittleSword.Player
 
         public override void OnNetworkSpawn()
         {
+            Debug.Log($"[BasePlayer] OnNetworkSpawn {name} OwnerClientId={OwnerClientId} IsOwner={IsOwner} instanceId={GetInstanceID()}");
             InitControllers();
 
             if (IsServer)
@@ -102,17 +108,24 @@ namespace LittleSword.Player
             networkAttack.OnValueChanged += OnAttackChanged;
             networkMoveSpeed.OnValueChanged += OnMoveSpeedChanged;
             networkFlipX.OnValueChanged += OnFlipXChanged;
+            networkIsRun.OnValueChanged += OnIsRunChanged;
 
             if (spriteRenderer != null)
                 spriteRenderer.flipX = networkFlipX.Value;
 
-            var cam = GetComponentInChildren<Camera>(true);
-            if (cam != null && !IsOwner)
-                cam.gameObject.SetActive(false);
-
             if (IsOwner)
             {
-                if (cmCamera != null) cmCamera.Follow = transform; // 로컬 플레이어의 카메라가 자신을 따라가도록 설정합니다.
+                // 오너만 카메라를 활성화. CinemachineBrain은 비활성화해 멀티플레이어 Brain 간섭 완전 차단.
+                // 카메라가 플레이어 자식이므로 Brain 없이도 플레이어를 따라온다.
+                var cam = GetComponentInChildren<Camera>(true);
+                if (cam != null)
+                {
+                    cam.gameObject.SetActive(true);
+                    var brain = cam.GetComponent<CinemachineBrain>();
+                    if (brain != null) brain.enabled = false;
+                }
+                // VCam(CinemachineCamera)은 Brain이 꺼져 있으므로 활성화하지 않는다.
+
                 inputHandler.enabled = true;
                 inputHandler.OnMove += Move;
                 inputHandler.OnAttack += Attack;
@@ -120,8 +133,10 @@ namespace LittleSword.Player
             }
             else
             {
-                if (cmCamera != null) cmCamera.gameObject.SetActive(false);
                 inputHandler.enabled = false;
+                // Dynamic Rigidbody2D가 NetworkTransform의 위치 업데이트를 방해하지 않도록 Kinematic으로 전환.
+                // 오너가 아닌 인스턴스는 물리 시뮬레이션이 아닌 NetworkTransform이 위치를 담당한다.
+                rigidBody.bodyType = RigidbodyType2D.Kinematic;
             }
         }
 
@@ -131,6 +146,7 @@ namespace LittleSword.Player
             networkAttack.OnValueChanged -= OnAttackChanged;
             networkMoveSpeed.OnValueChanged -= OnMoveSpeedChanged;
             networkFlipX.OnValueChanged -= OnFlipXChanged;
+            networkIsRun.OnValueChanged -= OnIsRunChanged;
 
             if (IsOwner)
             {
@@ -140,8 +156,30 @@ namespace LittleSword.Player
             }
         }
 
+        private float _diagTimer = 3f;
+
         protected void Update()
         {
+            // 진단: 스폰 후 3초간 모든 플레이어 상태를 로컬 콘솔에 출력 (클라이언트 Player.log 확인용)
+            if (_diagTimer > 0f)
+            {
+                _diagTimer -= Time.deltaTime;
+                if (_diagTimer < 2.9f && _diagTimer > 2.8f)
+                {
+                    var active = FindObjectsByType<BasePlayer>(FindObjectsSortMode.None);
+                    var all = FindObjectsByType<BasePlayer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                    Debug.Log($"[PlayerDiag] 이 머신: IsHost={NetworkManager.Singleton?.IsHost} IsServer={NetworkManager.Singleton?.IsServer} LocalClientId={NetworkManager.Singleton?.LocalClientId}");
+                    Debug.Log($"[PlayerDiag] 씬 내 BasePlayer 수: 활성={active.Length} / 전체(비활성포함)={all.Length}");
+                    foreach (var p in all)
+                    {
+                        var no = p.GetComponent<Unity.Netcode.NetworkObject>();
+                        var sr = p.GetComponent<SpriteRenderer>();
+                        var cam = p.GetComponentInChildren<Camera>(true);
+                        Debug.Log($"[PlayerDiag]  - {p.name} | OwnerClientId={no?.OwnerClientId} | IsOwner={no?.IsOwner} | pos={p.transform.position} | spriteEnabled={sr?.enabled} | objActive={p.gameObject.activeInHierarchy} | camActive={cam?.gameObject.activeInHierarchy} | instanceId={p.GetInstanceID()}");
+                    }
+                }
+            }
+
             if (!IsOwner) return;
             if (dashCooldownTimer > 0f)
                 dashCooldownTimer -= Time.deltaTime;
@@ -167,7 +205,14 @@ namespace LittleSword.Player
             rigidBody.gravityScale = 0;
             rigidBody.freezeRotation = true;
             playerStats = Instantiate(playerStats);
-            cmCamera = GetComponentInChildren<CinemachineCamera>(true); // 자식에서 CinemachineCamera를 찾아 카메라 제어에 사용하기 위해 캐시
+            cmCamera = GetComponentInChildren<CinemachineCamera>(true);
+
+            // 모든 카메라를 즉시 비활성화. 오너 여부는 OnNetworkSpawn에서만 알 수 있으므로
+            // 그 전까지 활성 상태인 채로 두면 Cinemachine Brain이 여러 VCam을 동시에 인식해
+            // 다른 플레이어의 카메라를 따라가는 간섭이 발생한다.
+            var camChild = GetComponentInChildren<Camera>(true);
+            if (camChild != null) camChild.gameObject.SetActive(false);
+            if (cmCamera != null) cmCamera.gameObject.SetActive(false);
         }
 
         #endregion
@@ -179,8 +224,11 @@ namespace LittleSword.Player
             if (!IsOwner) return;
             if (isDashing) return;
             movementController.Move(direction, playerStats.moveSpeed);
-            animationController.Move(direction != Vector2.zero);
-            if (direction != Vector2.zero)
+            bool isMoving = direction != Vector2.zero;
+            animationController.Move(isMoving);
+            if (networkIsRun.Value != isMoving)
+                networkIsRun.Value = isMoving;
+            if (isMoving)
             {
                 lastMoveDirection = direction.normalized;
                 bool shouldFlip = direction.x < 0;
@@ -316,6 +364,10 @@ namespace LittleSword.Player
         {
             if (spriteRenderer != null)
                 spriteRenderer.flipX = next;
+        }
+        private void OnIsRunChanged(bool prev, bool next)
+        {
+            if (!IsOwner) animationController?.Move(next);
         }
 
         #endregion

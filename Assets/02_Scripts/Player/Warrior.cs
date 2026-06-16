@@ -18,8 +18,8 @@ namespace LittleSword.Player
 
         protected new void Update()
         {
-            if (!IsOwner) return; // ✅ Archer와 동일하게 IsOwner 체크 추가
             base.Update();
+            if (!IsOwner) return;
 
             if (comboTimer > 0f)
             {
@@ -38,15 +38,40 @@ namespace LittleSword.Player
             {
                 comboStep = 1;
                 comboTimer = playerStats.comboResetTime;
-                animator.SetTrigger("Attack");
+                PlayAndSyncAttackAnim(0);
             }
             else if (comboStep == 1 && comboTimer > 0f)
             {
                 comboStep = 0;
                 comboTimer = 0f;
                 comboInputReceived = true;
-                animator.SetTrigger("Attack2");
+                PlayAndSyncAttackAnim(1);
             }
+        }
+
+        // 오너 로컬 즉시 실행 + 나머지 클라이언트에 동기화
+        // 호스트(서버): ClientRpc 직접 브로드캐스트
+        // 클라이언트: ServerRpc → ClientRpc 경유로 브로드캐스트
+        private void PlayAndSyncAttackAnim(int combo)
+        {
+            animator.SetTrigger(combo == 0 ? "Attack" : "Attack2");
+            if (IsServer)
+                BroadcastAttackAnimClientRpc(combo);
+            else
+                RequestBroadcastAttackAnimServerRpc(combo);
+        }
+
+        [ServerRpc]
+        private void RequestBroadcastAttackAnimServerRpc(int combo)
+        {
+            BroadcastAttackAnimClientRpc(combo);
+        }
+
+        [ClientRpc]
+        private void BroadcastAttackAnimClientRpc(int combo)
+        {
+            if (IsOwner) return; // 오너는 이미 로컬에서 재생
+            animator.SetTrigger(combo == 0 ? "Attack" : "Attack2");
         }
 
         // 애니메이션 이벤트: 1타

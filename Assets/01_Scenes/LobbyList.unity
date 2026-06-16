@@ -723,6 +723,7 @@ GameObject:
   - component: {fileID: 326974049}
   - component: {fileID: 326974048}
   - component: {fileID: 326974047}
+  - component: {fileID: 326974052}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -833,6 +834,31 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &326974052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 326974046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e66187b136ce3dc4ba3bc03a4a763af2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LittleSword.UI.LobbyUI
+  lobbyNameInput: {fileID: 0}
+  lobbyCodeInput: {fileID: 0}
+  createSessionButton: {fileID: 0}
+  quickJoinSessionButton: {fileID: 0}
+  startSessionButton: {fileID: 0}
+  createLobbyButton: {fileID: 0}
+  joinLobbyButton: {fileID: 0}
+  quickJoinLobbyButton: {fileID: 0}
+  leaveLobbyButton: {fileID: 0}
+  startGameButton: {fileID: 0}
+  statusText: {fileID: 0}
+  playerCountText: {fileID: 0}
+  lobbyCodeDisplayText: {fileID: 0}
 --- !u!1 &404657371
 GameObject:
   m_ObjectHideFlags: 0

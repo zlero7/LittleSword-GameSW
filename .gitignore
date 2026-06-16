@@ -26,8 +26,13 @@
 .DS_Store
 Thumbs.db
 
-# Claude AI session data
+# Claude AI session data (루트 + Assets 하위 등 어디에 있든 무시)
 /.claude/
+.claude/
+
+# 강의 자료 PDF (게임 에셋 아님, 빌드에 포함 불필요)
+/Assets/Resources/*.pdf
+/Assets/Resources/*.pdf.meta
 
 # BuildLog screenshots & logs
 /Assets/BuildLog/

@@ -70,6 +70,18 @@ namespace LittleSword.Network
                 {
                     var options = new InitializationOptions();
                     options.SetEnvironmentName("production");
+
+                    // 같은 PC에서 2개 이상 인스턴스로 테스트할 때 익명 PlayerId가 공유되면
+                    // 호스트와 클라이언트가 Lobby 서비스 상 "같은 플레이어"로 취급되어
+                    // 코드 입장 시 409 Conflict가 발생한다. 인스턴스별 고유 프로필을 지정해
+                    // 서로 다른 PlayerId를 부여한다. (커맨드라인 -authProfile <name> 으로 분리)
+                    string profile = ResolveAuthProfile();
+                    if (!string.IsNullOrEmpty(profile))
+                    {
+                        options.SetProfile(profile);
+                        Debug.Log($"[LobbyManager] 인증 프로필: {profile}");
+                    }
+
                     await UnityServices.InitializeAsync(options);
                 }
 
@@ -85,6 +97,33 @@ namespace LittleSword.Network
                 Debug.LogError($"[LobbyManager] 인증 실패: {e.Message}");
                 OnError?.Invoke($"인증 실패: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// 인증 프로필 이름 결정.
+        /// 1순위: 커맨드라인 인자 "-authProfile &lt;name&gt;" (빌드/에디터 실행 시 인스턴스별로 부여)
+        /// 미지정 시 null 반환 → 기본(default) 프로필 사용.
+        /// 같은 PC 로컬 테스트에서 두 번째 인스턴스에만 "-authProfile p2" 를 주면 충돌이 사라진다.
+        /// 프로필 이름은 영숫자/-/_ 1~30자만 허용된다.
+        /// </summary>
+        private static string ResolveAuthProfile()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "-authProfile")
+                {
+                    string raw = args[i + 1];
+                    if (string.IsNullOrWhiteSpace(raw)) return null;
+                    var sb = new System.Text.StringBuilder();
+                    foreach (char c in raw.Trim())
+                        if (char.IsLetterOrDigit(c) || c == '-' || c == '_') sb.Append(c);
+                    string clean = sb.ToString();
+                    if (clean.Length > 30) clean = clean.Substring(0, 30);
+                    return clean.Length > 0 ? clean : null;
+                }
+            }
+            return null;
         }
 
         // ✅ 추가: 현재 플레이어가 참여 중인 로비를 모두 조회해서 나감
@@ -544,7 +583,23 @@ namespace LittleSword.Network
         {
             try
             {
-                CurrentLobby = await LobbyService.Instance.JoinLobbyByCodeAsync(lobbyCode.Trim());
+                try
+                {
+                    CurrentLobby = await LobbyService.Instance.JoinLobbyByCodeAsync(lobbyCode.Trim());
+                }
+                catch (LobbyServiceException e) when (e.ApiError.Status == 409)
+                {
+                    // 이미 이 로비의 멤버인 경우(409). 과거에는 CleanupStaleLobbiesAsync로 모든 로비에서
+                    // 나가게 했는데, 같은 PlayerId를 공유하는 로컬 테스트에서는 호스트 자신의 로비까지
+                    // 삭제해 세션을 망가뜨렸다. JoinLobbyAsync와 동일하게 재입장 없이 데이터만 재조회한다.
+                    // (PlayerId 분리는 인증 프로필로 해결 — ResolveAuthProfile 참고)
+                    Debug.LogWarning("[LobbyManager] 이미 로비 멤버(409) — GetLobbyAsync로 재조회");
+                    var joined = await LobbyService.Instance.GetJoinedLobbiesAsync();
+                    if (joined != null && joined.Count > 0)
+                        CurrentLobby = await LobbyService.Instance.GetLobbyAsync(joined[0]);
+                    else
+                        throw;
+                }
 
                 string joinCode = null;
                 int retryCount = 0;
