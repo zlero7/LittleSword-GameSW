@@ -30,6 +30,13 @@ namespace LittleSword.Network
         public event Action OnAuthenticated;
         public event Action<string> OnError;
 
+        // 로비 데이터(플레이어 입장/퇴장/속성 변경)가 갱신될 때마다 최신 Lobby를 전달.
+        // 실시간 이벤트 구독 또는 폴링(폴백) 어느 쪽이든 동일하게 발행한다. (강의 32강)
+        public event Action<Lobby> OnLobbyUpdated;
+
+        private ILobbyEvents _lobbyEvents;   // 실시간 구독 핸들(해제용)
+        private bool _eventsActive;          // 실시간 구독 성공 여부 → 폴링 폴백 판단
+
         private float _heartbeatTimer;
         private const float HEARTBEAT_INTERVAL = 15f;
 
@@ -56,6 +63,19 @@ namespace LittleSword.Network
                 {
                     _heartbeatTimer = 0f;
                     _ = HeartbeatAsync();
+                }
+            }
+
+            // 폴링 폴백: 실시간 이벤트 구독이 활성화되지 않은 경우에만 주기적으로 로비 정보를
+            // 재조회해 CurrentLobby를 갱신한다(호스트/클라이언트 공통). 구독이 살아 있으면
+            // 이벤트로 갱신되므로 중복 호출을 피하기 위해 건너뛴다. (강의 32강 PollingLobbyAsync)
+            if (CurrentLobby != null && !_eventsActive)
+            {
+                _pollTimer += Time.deltaTime;
+                if (_pollTimer >= POLL_INTERVAL)
+                {
+                    _pollTimer = 0f;
+                    _ = PollLobbyAsync();
                 }
             }
         }
@@ -161,6 +181,98 @@ namespace LittleSword.Network
         }
         #endregion
 
+        #region 로비 콜백 (Event 방식 + 폴링 폴백)
+        // 강의 32강 Event 방식: LobbyEventCallbacks로 플레이어 입장/퇴장/속성 변경을 실시간 수신.
+        // 우리 구조에 맞춰 단순 로그가 아니라 CurrentLobby를 갱신하고 OnLobbyUpdated를 발행한다.
+        private async Task BindLobbyEventsAsync()
+        {
+            if (CurrentLobby == null) return;
+            await UnbindLobbyEventsAsync(); // 혹시 남아있는 이전 구독 정리
+
+            try
+            {
+                var callbacks = new LobbyEventCallbacks();
+                callbacks.LobbyChanged += OnLobbyChanged;       // 로비 데이터 변경분(ILobbyChanges)
+                callbacks.PlayerJoined += OnPlayerJoined;       // 입장 플레이어 목록
+                callbacks.PlayerLeft += OnPlayerLeft;           // 퇴장 플레이어 인덱스 목록
+                callbacks.KickedFromLobby += OnKickedFromLobby; // 추방됨
+
+                _lobbyEvents = await LobbyService.Instance
+                    .SubscribeToLobbyEventsAsync(CurrentLobby.Id, callbacks);
+                _eventsActive = true;
+                Debug.Log("[LobbyManager] 로비 이벤트 구독 성공(실시간)");
+            }
+            catch (Exception e)
+            {
+                // Wire 연결 불가/이미 구독 등 → 실시간 대신 Update()의 폴링 폴백으로 동작
+                _eventsActive = false;
+                Debug.LogWarning($"[LobbyManager] 로비 이벤트 구독 실패 → 폴링 폴백: {e.Message}");
+            }
+        }
+
+        private void OnLobbyChanged(ILobbyChanges changes)
+        {
+            if (CurrentLobby == null) return;
+            if (changes.LobbyDeleted)
+            {
+                Debug.LogWarning("[LobbyManager] 로비가 삭제되었습니다.");
+                CurrentLobby = null;
+                _eventsActive = false;
+                OnLobbyUpdated?.Invoke(null);
+                return;
+            }
+            changes.ApplyToLobby(CurrentLobby); // 변경분을 CurrentLobby에 병합
+            OnLobbyUpdated?.Invoke(CurrentLobby);
+        }
+
+        private void OnPlayerJoined(List<LobbyPlayerJoined> players)
+        {
+            foreach (var p in players)
+                Debug.Log($"[LobbyManager] 플레이어 접속: {p.Player.Id}");
+            OnLobbyUpdated?.Invoke(CurrentLobby);
+        }
+
+        private void OnPlayerLeft(List<int> removed)
+        {
+            foreach (var idx in removed)
+                Debug.Log($"[LobbyManager] 플레이어 퇴장 (인덱스: {idx})");
+            OnLobbyUpdated?.Invoke(CurrentLobby);
+        }
+
+        private void OnKickedFromLobby()
+        {
+            Debug.LogWarning("[LobbyManager] 로비에서 추방되었습니다.");
+            CurrentLobby = null;
+            _eventsActive = false;
+            OnLobbyUpdated?.Invoke(null);
+        }
+
+        private async Task UnbindLobbyEventsAsync()
+        {
+            _eventsActive = false;
+            if (_lobbyEvents == null) return;
+            try { await _lobbyEvents.UnsubscribeAsync(); }
+            catch (Exception e) { Debug.LogWarning($"[LobbyManager] 이벤트 구독 해제 실패: {e.Message}"); }
+            _lobbyEvents = null;
+        }
+
+        // 강의 32강 Polling 방식 대응: 서버에서 최신 로비 정보를 받아와 CurrentLobby를 갱신하고
+        // OnLobbyUpdated를 발행한다. 실시간 구독이 비활성일 때만 Update()에서 호출된다.
+        private async Task PollLobbyAsync()
+        {
+            if (CurrentLobby == null) return;
+            try
+            {
+                CurrentLobby = await LobbyService.Instance.GetLobbyAsync(CurrentLobby.Id);
+                OnLobbyUpdated?.Invoke(CurrentLobby);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[LobbyManager] 로비 폴링 실패: {e.Message}");
+            }
+        }
+        #endregion
+
         #region 호스트: 로비 생성 + Relay 할당
 
         private void Start()
@@ -207,6 +319,7 @@ namespace LittleSword.Network
                     }
                 };
                 CurrentLobby = await LobbyService.Instance.UpdateLobbyAsync(CurrentLobby.Id, updateOptions);
+                OnLobbyUpdated?.Invoke(CurrentLobby);
                 Debug.Log($"[LobbyManager] 플레이어 수 업데이트: {playerCount}");
             }
             catch (Exception e)
@@ -267,6 +380,9 @@ namespace LittleSword.Network
 
                 // Transport 실패 시 로비 삭제 (JoinCode 무효화 방지)
                 NetworkManager.Singleton.OnTransportFailure += OnHostTransportFailure;
+
+                // 실시간 로비 이벤트 구독(실패 시 폴링 폴백)
+                await BindLobbyEventsAsync();
 
                 Debug.Log($"[LobbyManager] 로비 생성 완료 – Id:{CurrentLobby.Id}  JoinCode:{joinCode}");
                 return true;
@@ -442,6 +558,7 @@ namespace LittleSword.Network
                         await LeaveLobbyAsync();
                         return false;
                     }
+                    await BindLobbyEventsAsync();
                     return true;
                 }
 
@@ -528,6 +645,10 @@ namespace LittleSword.Network
         public async Task LeaveLobbyAsync()
         {
             if (CurrentLobby == null) return;
+
+            // 실시간 이벤트 구독 해제 (남아 있으면 다음 입장 시 중복 구독 오류)
+            await UnbindLobbyEventsAsync();
+
             try
             {
                 if (IsHost())
@@ -621,7 +742,11 @@ namespace LittleSword.Network
                 }
 
                 if (!string.IsNullOrEmpty(joinCode))
-                    return await ConnectRelayAsClientAsync(joinCode);
+                {
+                    bool connected = await ConnectRelayAsClientAsync(joinCode);
+                    if (connected) await BindLobbyEventsAsync();
+                    return connected;
+                }
 
                 OnError?.Invoke("호스트로부터 연결 코드를 받지 못했습니다.");
                 await LeaveLobbyAsync();

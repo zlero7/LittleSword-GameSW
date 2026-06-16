@@ -4,6 +4,7 @@ using LittleSword.Network;
 using TMPro;
 using Unity.Netcode;
 using Unity.Services.Lobbies;
+using Unity.Services.Lobbies.Models;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -51,7 +52,6 @@ namespace LittleSword.UI
 
         private bool _busy;
         private bool _inLobby;
-        private Coroutine _pollCoroutine;
 
         private enum LobbyState { Initial, Hosting, Joined, Busy }
 
@@ -81,8 +81,10 @@ namespace LittleSword.UI
         private void OnDestroy()
         {
             if (LobbyManager.Instance != null)
+            {
                 LobbyManager.Instance.OnError -= OnError;
-            StopPoll();
+                LobbyManager.Instance.OnLobbyUpdated -= OnLobbyUpdated;
+            }
             if (NetworkManager.Singleton?.SceneManager != null)
                 NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnNGOSceneEvent;
         }
@@ -127,7 +129,6 @@ namespace LittleSword.UI
 
             SetStatus($"'{name}' 생성 완료. 플레이어를 기다리는 중...");
             SetUI(LobbyState.Hosting);
-            StartPoll();
         }
 
         // ── 빠른 참여 / 코드 참여 ────────────────────────────────────────────
@@ -172,7 +173,6 @@ namespace LittleSword.UI
 
             SetStatus($"'{lobbyName}' 에 참여했습니다.\n호스트가 게임을 시작할 때까지 기다리세요.");
             SetUI(LobbyState.Joined);
-            StartPoll();
         }
 
         // ── 로비 목록 이동 ───────────────────────────────────────────────────
@@ -192,7 +192,6 @@ namespace LittleSword.UI
         {
             _busy = true;
             SetUI(LobbyState.Busy);
-            StopPoll();
 
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
                 NetworkManager.Singleton.Shutdown();
@@ -228,47 +227,23 @@ namespace LittleSword.UI
                 return;
             }
 
-            StopPoll();
             HideCanvas();
             NetworkManager.Singleton.SceneManager.LoadScene(
                 "01_Scenes/Basic", LoadSceneMode.Single);
         }
 
-        // ── 로비 폴링 (방 인원 수 갱신) ──────────────────────────────────────
-        private void StartPoll() =>
-            _pollCoroutine = StartCoroutine(PollCoroutine());
-
-        private void StopPoll()
+        // ── 로비 정보 갱신 (LobbyManager의 실시간 이벤트/폴링 결과 수신) ──────────
+        // 강의 32강: LobbyManager가 Event(실시간) 또는 Polling(폴백)으로 갱신할 때마다 호출된다.
+        private void OnLobbyUpdated(Lobby lobby)
         {
-            if (_pollCoroutine != null) { StopCoroutine(_pollCoroutine); _pollCoroutine = null; }
-        }
+            if (playerCountText == null) return;
+            if (lobby == null) { playerCountText.text = ""; return; }
 
-        private IEnumerator PollCoroutine()
-        {
-            while (_inLobby)
-            {
-                yield return new WaitForSeconds(2f);
-                _ = RefreshPlayerCountAsync();
-            }
-        }
-
-        private async Task RefreshPlayerCountAsync()
-        {
-            if (LobbyManager.Instance?.CurrentLobby == null) return;
-            try
-            {
-                var lobby = await LobbyService.Instance
-                    .GetLobbyAsync(LobbyManager.Instance.CurrentLobby.Id);
-                if (playerCountText != null)
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append($"플레이어: {lobby.Players.Count} / {lobby.MaxPlayers}");
-                    for (int i = 0; i < lobby.Players.Count; i++)
-                        sb.Append($"\n  [{i + 1}] 플레이어 {i + 1}");
-                    playerCountText.text = sb.ToString();
-                }
-            }
-            catch { }
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"플레이어: {lobby.Players.Count} / {lobby.MaxPlayers}");
+            for (int i = 0; i < lobby.Players.Count; i++)
+                sb.Append($"\n  [{i + 1}] 플레이어 {i + 1}");
+            playerCountText.text = sb.ToString();
         }
 
         // ── UI 상태 관리 ─────────────────────────────────────────────────────
@@ -339,6 +314,9 @@ namespace LittleSword.UI
                 new GameObject("LobbyManager").AddComponent<LobbyManager>();
             LobbyManager.Instance.OnError -= OnError;
             LobbyManager.Instance.OnError += OnError;
+            // 로비 정보(인원/플레이어 목록) 실시간 갱신 구독 (강의 32강 Event/Polling)
+            LobbyManager.Instance.OnLobbyUpdated -= OnLobbyUpdated;
+            LobbyManager.Instance.OnLobbyUpdated += OnLobbyUpdated;
         }
 
         private void OnError(string message)
