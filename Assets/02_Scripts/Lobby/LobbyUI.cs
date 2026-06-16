@@ -119,6 +119,11 @@ namespace LittleSword.UI
             string code = LobbyManager.Instance.GetCurrentLobbyCode();
             if (lobbyCodeDisplayText != null)
                 lobbyCodeDisplayText.text = $"로비 코드: {code}";
+            if (playerCountText != null)
+            {
+                int maxP = LobbyManager.Instance.CurrentLobby?.MaxPlayers ?? 4;
+                playerCountText.text = $"플레이어: 1 / {maxP}";
+            }
 
             SetStatus($"'{name}' 생성 완료. 플레이어를 기다리는 중...");
             SetUI(LobbyState.Hosting);
@@ -156,8 +161,18 @@ namespace LittleSword.UI
 
             _inLobby = true;
             _busy = false;
-            SetStatus("방에 참여했습니다. 호스트가 게임을 시작할 때까지 기다리세요.");
+
+            var currentLobby = LobbyManager.Instance.CurrentLobby;
+            string lobbyName = currentLobby?.Name ?? "방";
+            string lobbyCode = LobbyManager.Instance.GetCurrentLobbyCode();
+            if (lobbyCodeDisplayText != null)
+                lobbyCodeDisplayText.text = string.IsNullOrEmpty(lobbyCode) ? "" : $"로비 코드: {lobbyCode}";
+            if (playerCountText != null && currentLobby != null)
+                playerCountText.text = $"플레이어: {currentLobby.Players.Count} / {currentLobby.MaxPlayers}";
+
+            SetStatus($"'{lobbyName}' 에 참여했습니다.\n호스트가 게임을 시작할 때까지 기다리세요.");
             SetUI(LobbyState.Joined);
+            StartPoll();
         }
 
         // ── 로비 목록 이동 ───────────────────────────────────────────────────
@@ -167,7 +182,9 @@ namespace LittleSword.UI
             SetUI(LobbyState.Busy);
             SetStatus("로비 목록으로 이동 중...");
             await EnsureAuth();
-            SceneManager.LoadScene("01_Scenes/LobbyList");
+            // 씬 이름만 사용. "01_Scenes/LobbyList" 같은 부분 경로는 raw SceneManager가
+            // 전체 경로(Assets/.../LobbyList.unity)로 간주·매칭 실패하여 로드되지 않는다.
+            SceneManager.LoadScene("LobbyList");
         }
 
         // ── 로비 나가기 ──────────────────────────────────────────────────────
@@ -243,7 +260,13 @@ namespace LittleSword.UI
                 var lobby = await LobbyService.Instance
                     .GetLobbyAsync(LobbyManager.Instance.CurrentLobby.Id);
                 if (playerCountText != null)
-                    playerCountText.text = $"플레이어: {lobby.Players.Count} / {lobby.MaxPlayers}";
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append($"플레이어: {lobby.Players.Count} / {lobby.MaxPlayers}");
+                    for (int i = 0; i < lobby.Players.Count; i++)
+                        sb.Append($"\n  [{i + 1}] 플레이어 {i + 1}");
+                    playerCountText.text = sb.ToString();
+                }
             }
             catch { }
         }

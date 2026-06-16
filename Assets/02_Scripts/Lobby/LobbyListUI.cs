@@ -208,7 +208,8 @@ namespace LittleSword.UI
             if (LobbyManager.Instance != null)
                 await LobbyManager.Instance.LeaveLobbyAsync();
 
-            SceneManager.LoadScene("01_Scenes/Start");
+            // 씬 이름만 사용 (부분 경로는 raw SceneManager가 매칭 실패함)
+            SceneManager.LoadScene("Start");
         }
         #endregion
 

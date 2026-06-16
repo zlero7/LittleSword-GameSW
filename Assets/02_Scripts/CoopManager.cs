@@ -183,7 +183,8 @@ namespace LittleSword.UI
                 NetworkManager.Singleton.Shutdown();
 
             yield return new WaitForSeconds(0.5f);
-            SceneManager.LoadScene("01_Scenes/Start");
+            // 씬 이름만 사용 (부분 경로는 raw SceneManager가 매칭 실패함)
+            SceneManager.LoadScene("Start");
         }
 
         private void OnBossKill(int stage)

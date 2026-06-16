@@ -87,7 +87,8 @@ namespace LittleSword.Network
             await LobbyManager.Instance.AuthenticateAsync();
 
             SetStatus("로비 목록 불러오는 중...");
-            SceneManager.LoadScene("01_Scenes/LobbyList");
+            // 씬 이름만 사용 (부분 경로는 raw SceneManager가 매칭 실패함)
+            SceneManager.LoadScene("LobbyList");
         }
 
         // ── Server (플레이어 없이 서버만) ─────────────────────────────────────
