@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 using LittleSword.Player;
+using LittleSword.Network;
 using Unity.Netcode;
 
 namespace LittleSword.UI
@@ -42,10 +44,14 @@ namespace LittleSword.UI
         [Header("스테이지 클리어 UI")]
         [SerializeField] private GameObject clearBanner;
 
+        [Header("나가기")]
+        [SerializeField] private Button leaveButton;
+
         private BasePlayer player;
         private LevelSystem levelSystem;
         private StageManager stageManager;
         private bool isConnected = false;
+        private bool isLeaving = false;
 
         private void Start()
         {
@@ -60,6 +66,25 @@ namespace LittleSword.UI
 
             if (bossWarning != null) bossWarning.SetActive(false);
             if (clearBanner != null) clearBanner.SetActive(false);
+
+            leaveButton?.onClick.AddListener(OnLeaveClicked);
+        }
+
+        // 강의 37강 "로비로 나가는 로직" 대응: 새 Session API 대신 기존 LobbyManager
+        // 아키텍처를 그대로 사용해 NetworkManager 종료 → 로비 정리 → Start 씬 복귀.
+        private async void OnLeaveClicked()
+        {
+            if (isLeaving) return;
+            isLeaving = true;
+            if (leaveButton != null) leaveButton.interactable = false;
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                NetworkManager.Singleton.Shutdown();
+
+            if (LobbyManager.Instance != null)
+                await LobbyManager.Instance.LeaveLobbyAsync();
+
+            SceneManager.LoadScene("Start");
         }
 
         private void Update()
@@ -208,6 +233,7 @@ namespace LittleSword.UI
                 stageManager.OnStageClear -= HandleStageClear;
                 stageManager.OnBossStage -= HandleBossStage;
             }
+            leaveButton?.onClick.RemoveListener(OnLeaveClicked);
         }
     }
 }
