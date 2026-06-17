@@ -83,8 +83,19 @@ namespace LittleSword.UI
                     Keyboard.current.tabKey.wasPressedThisFrame &&
                     alivePlayers.Count > 0)
                 {
-                    spectateIndex = (spectateIndex + 1) % alivePlayers.Count;
-                    currentSpectateTarget = alivePlayers[spectateIndex];
+                    // 순환: 자신의 시체(null) → 생존자 0 → 1 → ... → 마지막 생존자 → 다시 자신의 시체
+                    if (currentSpectateTarget == null)
+                    {
+                        spectateIndex = 0;
+                        currentSpectateTarget = alivePlayers[0];
+                    }
+                    else
+                    {
+                        spectateIndex++;
+                        currentSpectateTarget = spectateIndex >= alivePlayers.Count
+                            ? null
+                            : alivePlayers[spectateIndex];
+                    }
                 }
             }
         }
@@ -94,6 +105,8 @@ namespace LittleSword.UI
             if (isSpectating || isGameOver) return;
 
             isSpectating = true;
+            // 죽은 직후에는 다른 생존자로 자동 전환하지 않고 자신의 시체를 먼저 보여준다.
+            currentSpectateTarget = null;
 
             if (myCamera != null)
             {
@@ -123,20 +136,29 @@ namespace LittleSword.UI
                 .OrderBy(p => p.GetComponent<NetworkObject>().OwnerClientId)
                 .ToList();
 
-            if (alivePlayers.Count == 0 || myCamera == null) return;
+            if (myCamera == null) return;
 
-            if (currentSpectateTarget == null || currentSpectateTarget.IsDead)
+            // 관전 중이던 대상이 죽었으면(자신의 시체를 보는 중이 아닐 때만) 다음 생존자로 전환.
+            // currentSpectateTarget이 null인 경우는 "자신의 시체를 보는 중" 상태이므로
+            // Tab을 누르기 전까지는 자동으로 전환하지 않는다.
+            if (currentSpectateTarget != null && currentSpectateTarget.IsDead)
             {
+                if (alivePlayers.Count == 0) return;
                 spectateIndex = Mathf.Clamp(spectateIndex, 0, alivePlayers.Count - 1);
                 currentSpectateTarget = alivePlayers[spectateIndex];
             }
 
-            Vector3 targetPos = currentSpectateTarget.transform.position + Vector3.back * 10f;
+            BasePlayer viewTarget = currentSpectateTarget != null ? currentSpectateTarget : myPlayer;
+            if (viewTarget == null) return;
+
+            Vector3 targetPos = viewTarget.transform.position + Vector3.back * 10f;
             myCamera.transform.position = Vector3.Lerp(
                 myCamera.transform.position, targetPos, Time.deltaTime * 5f);
 
             if (spectateText != null)
-                spectateText.text = $"관전 중 - {currentSpectateTarget.gameObject.name} (Tab으로 전환)";
+                spectateText.text = currentSpectateTarget != null
+                    ? $"관전 중 - {currentSpectateTarget.gameObject.name} (Tab으로 전환)"
+                    : "자신의 시체를 보는 중 (Tab으로 다른 플레이어 관전)";
         }
 
         [ClientRpc]
