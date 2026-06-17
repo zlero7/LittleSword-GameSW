@@ -70,8 +70,7 @@ namespace LittleSword.UI
             startGameButton?.onClick.AddListener(() => { if (!_busy) OnStartGame(); });
 
             EnsureLobbyManager();
-            SetUI(LobbyState.Initial);
-            SetStatus("방을 만들거나 참여하세요.");
+            InitializeUIFromCurrentLobby();
 
             // 씬 전환 시작 즉시 이 Canvas를 제거 (DontDestroyOnLoad에 잔존 방지)
             if (NetworkManager.Singleton?.SceneManager != null)
@@ -94,6 +93,35 @@ namespace LittleSword.UI
             if (sceneEvent.SceneEventType != SceneEventType.Load) return;
             var canvas = GetComponentInParent<Canvas>();
             if (canvas != null) Destroy(canvas.gameObject);
+        }
+
+        // JoinLobby → 방 목록에서 선택 시, NGO 씬 동기화로 호스트의 로비 씬이 다시 로드되면서
+        // 이 컴포넌트의 Start()가 처음부터 재실행된다. 이미 LobbyManager.CurrentLobby가 있다면
+        // (= 참여가 끝난 상태로 돌아온 것) Initial이 아니라 QuickJoin과 동일한 Joined/Hosting
+        // 상태로 복원해야 한다.
+        private void InitializeUIFromCurrentLobby()
+        {
+            var currentLobby = LobbyManager.Instance.CurrentLobby;
+            if (currentLobby == null)
+            {
+                SetUI(LobbyState.Initial);
+                SetStatus("방을 만들거나 참여하세요.");
+                return;
+            }
+
+            _inLobby = true;
+            bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+
+            string code = LobbyManager.Instance.GetCurrentLobbyCode();
+            if (lobbyCodeDisplayText != null)
+                lobbyCodeDisplayText.text = string.IsNullOrEmpty(code) ? "" : $"로비 코드: {code}";
+            if (playerCountText != null)
+                playerCountText.text = $"플레이어: {currentLobby.Players.Count} / {currentLobby.MaxPlayers}";
+
+            SetStatus(isHost
+                ? $"'{currentLobby.Name}' 생성 완료. 플레이어를 기다리는 중..."
+                : $"'{currentLobby.Name}' 에 참여했습니다.\n호스트가 게임을 시작할 때까지 기다리세요.");
+            SetUI(isHost ? LobbyState.Hosting : LobbyState.Joined);
         }
 
         // ── 방 생성 ─────────────────────────────────────────────────────────

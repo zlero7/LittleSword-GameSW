@@ -7,13 +7,29 @@ namespace LittleSword.UI
     {
         [SerializeField] private Button startButton;
         [SerializeField] private Button quitButton;
-        [SerializeField] private GameObject characterSelectPanel; // Ãß°¡
+        [SerializeField] private GameObject characterSelectPanel; // ï¿½ß°ï¿½
 
         private void Start()
         {
             startButton?.onClick.AddListener(OnStartClicked);
             quitButton?.onClick.AddListener(OnQuitClicked);
-            characterSelectPanel?.SetActive(false); // Ã³À½¿£ ¼û±è
+            characterSelectPanel?.SetActive(false); // Ã³ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+
+            if (LittleSword.Network.LobbyManager.Instance != null &&
+                LittleSword.Network.LobbyManager.Instance.CurrentLobby != null)
+            {
+                SkipToLobbyPanel();
+            }
+        }
+
+        private void SkipToLobbyPanel()
+        {
+            gameObject.SetActive(false);
+            characterSelectPanel?.SetActive(false);
+
+            var canvas = GetComponentInParent<Canvas>();
+            var lobbyPanel = canvas != null ? canvas.transform.Find("LobbyPanel") : null;
+            lobbyPanel?.gameObject.SetActive(true);
         }
 
         private void OnStartClicked()
